@@ -25,16 +25,18 @@ mountain_images = [pygame.image.load(f'labelling/images/mountains/mountain_{i}.j
 def gradCPT():
     clock = pygame.time.Clock()
     target_freq = 0.9
-    response_times = [0] * GAME_CYCLES
+    responses = ([0] * GAME_CYCLES, False * GAME_CYCLES)
     start_timestamp = pygame.time.get_ticks()
 
     alpha_change_per_frame = 256 / 48
 
     current_img = np.random.choice(city_images if np.random.rand() < target_freq else mountain_images)
+
+    start_time = pygame.time.get_ticks()
+
     for i in range(GAME_CYCLES):
         next_img = np.random.choice(city_images if np.random.rand() < target_freq else mountain_images)
-
-        start_time = pygame.time.get_ticks()
+        mountain = next_img in mountain_images
 
         for alpha in np.arange(0, 256, alpha_change_per_frame):
             current_img.set_alpha(255 - alpha)
@@ -49,13 +51,16 @@ def gradCPT():
                     pygame.quit()
                     return
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                    response_times[i] = pygame.time.get_ticks() - start_time
+                    keybr_down = pygame.time.get_ticks() - start_time
+                    responses[i] = (keybr_down, mountain)
     
         current_img = next_img
 
     end_timestamp = pygame.time.get_ticks()
-    return start_timestamp, end_timestamp, response_times
+    return start_timestamp, end_timestamp, responses
 
+# if response_time < 800 * 0.7 or response_time > 800 * 1.4:
+                        #handle shit
 """
 Calculate RTV aka the trial to trial variation in response time
 """
