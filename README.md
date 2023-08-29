@@ -12,4 +12,4 @@ Select the environment in vscode from the bottom right corner.
 
 `conda install <package_name>`
 
-`conda env export > environment.yml`
+Add to `dependencies.yml` with package version included
