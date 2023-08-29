@@ -1,0 +1,12 @@
+name: halo
+dependencies:
+  - python=3.11.4
+  - matplotlib=3.7.1
+  - pandas=2.0.3
+  - ipykernel=6.25.0
+  - numpy=1.25.2
+  - pip=23.2.1
+  - scipy=1.11.1
+  - pip:
+    - python-osc
+    - mne
