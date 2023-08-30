@@ -32,12 +32,12 @@ def gradCPT():
 
     current_img = np.random.choice(city_images if np.random.rand() < target_freq else mountain_images)
 
-    start_time = pygame.time.get_ticks()
+    
 
     for i in range(GAME_CYCLES):
         next_img = np.random.choice(city_images if np.random.rand() < target_freq else mountain_images)
-        mountain = next_img in mountain_images
-
+        responses[i][1] = next_img in mountain_images
+        start_time = pygame.time.get_ticks()
         for alpha in np.arange(0, 256, alpha_change_per_frame):
             current_img.set_alpha(255 - alpha)
             next_img.set_alpha(alpha)
@@ -52,15 +52,41 @@ def gradCPT():
                     return
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                     keybr_down = pygame.time.get_ticks() - start_time
-                    responses[i] = (keybr_down, mountain)
-    
+                    # if(keybr_down > 320 and keybr_down < 480): continue
+                    responses[i][0].append(keybr_down)
+                    
         current_img = next_img
 
     end_timestamp = pygame.time.get_ticks()
     return start_timestamp, end_timestamp, responses
 
-# if response_time < 800 * 0.7 or response_time > 800 * 1.4:
-                        #handle shit
+def process_responses(responses):
+
+    RTs = []
+
+    fastestResponse = min(responses[0][0])
+
+    RTs.append(create_RT(fastestResponse, responses[0][1]))
+
+    for i in range(1, len(responses)):
+        fastestResponsePreviousWindow = 800 - max(responses[i-1][0])
+        fastestResponseCurrentWindow = min(responses[i][0])
+
+        fastestResponse = min(fastestResponsePreviousWindow, fastestResponseCurrentWindow)
+        RTs.append(create_RT(fastestResponse, responses[i][1]))
+    
+    return RTs
+
+def create_RT(response_time, mountain):
+    # We check if the response time is less than 400ms, to not get one spacebar for two images
+    if response_time < 400 and mountain:
+        return (response_time, 0)
+    elif response_time < 400 and not mountain:
+        return (response_time, 1)
+    elif not response_time and mountain:
+        return (0, 1)
+    elif not response_time and not mountain:
+        return (0, 0)
 """
 Calculate RTV aka the trial to trial variation in response time
 """

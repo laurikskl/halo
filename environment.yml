@@ -1,4 +1,8 @@
 name: halo
+channels:
+  - anaconda
+  - conda-forge
+  - defaults
 dependencies:
   - python=3.11.4
   - matplotlib=3.7.1
@@ -7,6 +11,8 @@ dependencies:
   - numpy=1.25.2
   - pip=23.2.1
   - scipy=1.11.1
+  - pygame=2.5.1
+  - Pillow
   - pip:
     - python-osc
     - mne
