@@ -9,6 +9,7 @@ TRANSITION_TIME = 800  # in ms
 GAUSSIAN_KERNEL_WIDTH = 7  # in seconds
 FWHM = 9
 GAME_CYCLES = 10
+TARGET_FREQ = 0.9
 
 # Initialize pygame
 pygame.init()
@@ -31,8 +32,6 @@ def gradCPT():
     alpha_change_per_frame = 256 / 48
 
     current_img = np.random.choice(city_images if np.random.rand() < target_freq else mountain_images)
-
-    
 
     for i in range(GAME_CYCLES):
         next_img = np.random.choice(city_images if np.random.rand() < target_freq else mountain_images)
@@ -87,10 +86,9 @@ def create_RT(response_time, mountain):
         return (0, 1)
     elif not response_time and not mountain:
         return (0, 0)
-"""
-Calculate RTV aka the trial to trial variation in response time
-"""
+
 def calculate_RTV(response_times):
+    """Calculate RTV aka the trial to trial variation in response time"""
     # Z-normalized: normalized such that mean is 0 and std is 1
     z_normalized_RT = (response_times - np.mean(response_times)) / np.std(response_times)
     vtc = np.abs(z_normalized_RT - np.mean(response_times))
@@ -106,9 +104,23 @@ def calculate_RTV(response_times):
 
     return VTC_smoothed
 
-start_time, end_time, RTs = gradCPT()
-RTV = calculate_RTV(RTs)
-print(f"Start time: {start_time}")
-print(f"End time: {end_time}")
-print(f"RTs: {RTs}")
-print(f"RTV: {RTV}")
+def get_image(last_image):
+    """Returns a random image from the city or mountain images, depending on the last image shown.
+    
+    Parameters
+    ----------
+
+    
+    """
+    if last_image and last_image in mountain_images:
+        return np.random.choice(city_images)
+    return np.random.choice(city_images if np.random.rand() < TARGET_FREQ else mountain_images)
+
+if __name__ == "__main__":
+    start_time, end_time, RTs = gradCPT()
+    RTV = calculate_RTV(RTs)
+    print(type(np.random.choice(city_images if np.random.rand() < TARGET_FREQ else mountain_images)))
+    print(f"Start time: {start_time}")
+    print(f"End time: {end_time}")
+    print(f"RTs: {RTs}")
+    print(f"RTV: {RTV}")
