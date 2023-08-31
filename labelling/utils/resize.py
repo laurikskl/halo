@@ -21,7 +21,7 @@ def resize_images(directory, output_size):
             print(f"Resized {filename} to {output_size}")
 
 if __name__ == "__main__":
-    directory_path = "labelling/images/city"
+    directory_path = "labelling/images/mountains"
     width = 1920
     height = 1080
 
