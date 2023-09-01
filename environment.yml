@@ -12,7 +12,8 @@ dependencies:
   - pip=23.2.1
   - scipy=1.11.1
   - pygame=2.5.1
+  - psychopy
   - Pillow
   - pip:
-    - python-osc
-    - mne
+      - python-osc
+      - mne

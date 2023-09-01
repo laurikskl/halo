@@ -1,3 +1,4 @@
+import time
 import pygame
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
@@ -8,7 +9,7 @@ FPS = 60
 TRANSITION_TIME = 800  # in ms
 GAUSSIAN_KERNEL_WIDTH = 7  # in seconds
 FWHM = 9
-GAME_CYCLES = 10
+TRIAL_COUNT = 10
 TARGET_FREQ = 0.9
 
 # Initialize pygame
@@ -24,23 +25,24 @@ mountain_images = [pygame.image.load(f'labelling/images/mountains/mountain_{i}.j
 
 
 def gradCPT():
+    """Runs the gradCPT task."""
     clock = pygame.time.Clock()
-    target_freq = 0.9
-    responses = ([0] * GAME_CYCLES, False * GAME_CYCLES)
-    start_timestamp = pygame.time.get_ticks()
+    trials = [{'is_mountain': False, 'responses': []} for _ in range(TRIAL_COUNT)]
+    start_timestamp = time.time()
 
-    alpha_change_per_frame = 256 / 48
+    # Change this value to make it 800ms on your machine. This value is for a M1 Macbook Air.
+    alpha_change_per_frame = 256 / 33
 
-    current_img = np.random.choice(city_images if np.random.rand() < target_freq else mountain_images)
+    cur_img, is_mountain = get_image()
 
-    for i in range(GAME_CYCLES):
-        next_img = np.random.choice(city_images if np.random.rand() < target_freq else mountain_images)
-        responses[i][1] = next_img in mountain_images
-        start_time = pygame.time.get_ticks()
+    for i in range(TRIAL_COUNT):
+        trials[i]['is_mountain'] = is_mountain
+        next_img, next_is_mountain = get_image(cur_img)
+        trial_start = time.time()
         for alpha in np.arange(0, 256, alpha_change_per_frame):
-            current_img.set_alpha(255 - alpha)
+            cur_img.set_alpha(255 - alpha)
             next_img.set_alpha(alpha)
-            screen.blit(current_img, (0, 0))
+            screen.blit(cur_img, (0, 0))
             screen.blit(next_img, (0, 0))
             pygame.display.flip()
             clock.tick(FPS)
@@ -49,49 +51,44 @@ def gradCPT():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     return
-                elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                    keybr_down = pygame.time.get_ticks() - start_time
-                    # if(keybr_down > 320 and keybr_down < 480): continue
-                    responses[i][0].append(keybr_down)
-                    
-        current_img = next_img
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                    trials[i]['responses'].append((time.time() - trial_start) * 1000)
 
-    end_timestamp = pygame.time.get_ticks()
-    return start_timestamp, end_timestamp, responses
+        cur_img, is_mountain = next_img, next_is_mountain
+        trial_end = time.time()
+        print(f"Time taken: {trial_end - trial_start}")
 
-def process_responses(responses):
+    end_timestamp = time.time()
+    return start_timestamp, end_timestamp, trials
 
-    RTs = []
+def calculate_rts(trials):
+    """Calculate response times from the trial data."""
+    response_times = [0] * TRIAL_COUNT
 
-    fastestResponse = min(responses[0][0])
+    # Loop 0: unamibiguous correct responses
+    for i, trial in enumerate(trials):
+        for j, rt in enumerate(trial['responses']):
+            if rt < 320 and not trials[i-1]['is_mountain']:
+                response_times[i-1] = min(rt, response_times[i-1])
+                del trials[i]['responses'][j]
+            elif rt > 560 and not trial['is_mountain']:
+                response_times[i] = min(rt, response_times[i])
+                del trials[i]['responses'][j]
 
-    RTs.append(create_RT(fastestResponse, responses[0][1]))
+    # loop 1: ambigous presses
+    for i, trial in enumerate(trials):
+        for j, rt in enumerate(trial['responses']):
+            pass
 
-    for i in range(1, len(responses)):
-        fastestResponsePreviousWindow = 800 - max(responses[i-1][0])
-        fastestResponseCurrentWindow = min(responses[i][0])
 
-        fastestResponse = min(fastestResponsePreviousWindow, fastestResponseCurrentWindow)
-        RTs.append(create_RT(fastestResponse, responses[i][1]))
-    
-    return RTs
+    return response_times
+    # placeholder
 
-def create_RT(response_time, mountain):
-    # We check if the response time is less than 400ms, to not get one spacebar for two images
-    if response_time < 400 and mountain:
-        return (response_time, 0)
-    elif response_time < 400 and not mountain:
-        return (response_time, 1)
-    elif not response_time and mountain:
-        return (0, 1)
-    elif not response_time and not mountain:
-        return (0, 0)
-
-def calculate_RTV(response_times):
+def calculate_rtv(response_times):
     """Calculate RTV aka the trial to trial variation in response time"""
     # Z-normalized: normalized such that mean is 0 and std is 1
-    z_normalized_RT = (response_times - np.mean(response_times)) / np.std(response_times)
-    vtc = np.abs(z_normalized_RT - np.mean(response_times))
+    z_normalized_rt = (response_times - np.mean(response_times)) / np.std(response_times)
+    vtc = np.abs(z_normalized_rt - np.mean(response_times))
 
     # Linear interpolation for missing values
     # Filling gaps in a simple way, assuming gaps are only one trial wide
@@ -100,27 +97,30 @@ def calculate_RTV(response_times):
             vtc[i] = (vtc[i-1] + vtc[i+1]) / 2
 
     # Smooth the VTC
-    VTC_smoothed = gaussian_filter1d(vtc, sigma=7)  # sigma derived from FWHM
+    vtc_smoothed = gaussian_filter1d(vtc, sigma=7)  # sigma derived from FWHM
 
-    return VTC_smoothed
+    return vtc_smoothed
 
-def get_image(last_image):
-    """Returns a random image from the city or mountain images, depending on the last image shown.
-    
-    Parameters
-    ----------
+def get_image(last_image: pygame.Surface = None):
+    """Returns an image depending on the last image shown."""
+    is_mountain = False
+    # Initial decision whether to pick from city_images or mountain_images
+    if np.random.rand() < TARGET_FREQ or (last_image and last_image in mountain_images):
+        pool = city_images
+    else:
+        pool = mountain_images
+        is_mountain = True
 
-    
-    """
-    if last_image and last_image in mountain_images:
-        return np.random.choice(city_images)
-    return np.random.choice(city_images if np.random.rand() < TARGET_FREQ else mountain_images)
+    # Now select an image, but ensure it's not the same as last_image
+    choice = np.random.choice(pool)
+    while choice == last_image:
+        choice = np.random.choice(pool)
+
+    return choice, is_mountain
 
 if __name__ == "__main__":
-    start_time, end_time, RTs = gradCPT()
-    RTV = calculate_RTV(RTs)
-    print(type(np.random.choice(city_images if np.random.rand() < TARGET_FREQ else mountain_images)))
-    print(f"Start time: {start_time}")
-    print(f"End time: {end_time}")
+    _, _, t = gradCPT()
+    RTs = calculate_rts(t)
+    #RTV = calculate_rtv(RTs)
     print(f"RTs: {RTs}")
-    print(f"RTV: {RTV}")
+    #print(f"RTV: {RTV}")
