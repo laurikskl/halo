@@ -24,7 +24,7 @@ city_images = [pygame.image.load(f'labelling/images/city/city_{i}.jpg') for i in
 mountain_images = [pygame.image.load(f'labelling/images/mountains/mountain_{i}.jpg') for i in range(10)]
 
 
-def gradCPT():
+def gather_responses():
     """Runs the gradCPT task."""
     clock = pygame.time.Clock()
     trials = [{'is_mountain': False, 'responses': []} for _ in range(TRIAL_COUNT)]
@@ -50,7 +50,6 @@ def gradCPT():
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
-                    return
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                     trials[i]['responses'].append((time.time() - trial_start) * 1000)
 
@@ -61,28 +60,46 @@ def gradCPT():
     end_timestamp = time.time()
     return start_timestamp, end_timestamp, trials
 
-def calculate_rts(trials):
+def process_responses(trials):
     """Calculate response times from the trial data."""
-    response_times = [0] * TRIAL_COUNT
+    response_times = [float('inf')] * TRIAL_COUNT
+
+    # Edge case: first trial
+    if trials[0]['responses']:
+        response_times[0] = trials[0]['responses'][0]
 
     # Loop 0: unamibiguous correct responses
-    for i, trial in enumerate(trials):
-        for j, rt in enumerate(trial['responses']):
+    for i, trial in enumerate(trials[1:], start=1):
+        remaining_responses = []
+        for rt in trial['responses']:
             if rt < 320 and not trials[i-1]['is_mountain']:
-                response_times[i-1] = min(rt, response_times[i-1])
-                del trials[i]['responses'][j]
+                response_times[i-1] = min(800 + rt, response_times[i-1])
             elif rt > 560 and not trial['is_mountain']:
                 response_times[i] = min(rt, response_times[i])
-                del trials[i]['responses'][j]
-
-    # loop 1: ambigous presses
-    for i, trial in enumerate(trials):
-        for j, rt in enumerate(trial['responses']):
-            pass
+            else:
+                remaining_responses.append(rt)
+        trial['responses'] = remaining_responses
 
 
+    # Loop 1: ambigous presses
+    for i, trial in enumerate(trials[1:], start=1):
+        for rt in trial['responses']:
+            if response_times[i-1] == float('inf') and response_times[i] != float('inf'):
+                response_times[i-1] = 800 + rt
+            elif response_times[i-1] != float('inf') and response_times[i] == float('inf'):
+                response_times[i] = rt
+            elif response_times[i-1] == float('inf') and response_times[i] == float('inf'):
+                if trials[i-1]['is_mountain']:
+                    response_times[i] = rt
+                elif trial['is_mountain']:
+                    response_times[i-1] = 800 + rt
+                else:
+                    if rt < 400:
+                        response_times[i-1] = 800 + rt
+                    else:
+                        response_times[i] = rt
+    
     return response_times
-    # placeholder
 
 def calculate_rtv(response_times):
     """Calculate RTV aka the trial to trial variation in response time"""
@@ -118,9 +135,11 @@ def get_image(last_image: pygame.Surface = None):
 
     return choice, is_mountain
 
+def test():
+    test_responses = [{'is_mountain': False, 'responses': [400]}, {'is_mountain': False, 'responses': [100, 400, 780]}, {'is_mountain': False, 'responses': [200, 570]}, {'is_mountain': False, 'responses': [400]}, {'is_mountain': False, 'responses': []}, {'is_mountain': False, 'responses': [20, 780]}, {'is_mountain': False, 'responses': []}, {'is_mountain': False, 'responses': [400]}]
+    test_rts = process_responses(test_responses)
+    print(test_rts)
+
+
 if __name__ == "__main__":
-    _, _, t = gradCPT()
-    RTs = calculate_rts(t)
-    #RTV = calculate_rtv(RTs)
-    print(f"RTs: {RTs}")
-    #print(f"RTV: {RTV}")
+    test()
