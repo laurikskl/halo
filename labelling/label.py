@@ -6,10 +6,8 @@ from scipy.ndimage import gaussian_filter1d
 # Constants
 SCREEN_WIDTH, SCREEN_HEIGHT = 1920, 1080
 FPS = 60
-TRANSITION_TIME = 800  # in ms
-GAUSSIAN_KERNEL_WIDTH = 7  # in seconds
 FWHM = 9
-TRIAL_COUNT = 10
+TRIAL_COUNT = 50
 TARGET_FREQ = 0.9
 
 # Initialize pygame
@@ -25,7 +23,7 @@ mountain_images = [pygame.image.load(f'labelling/images/mountains/mountain_{i}.j
 
 
 def gather_responses():
-    """Runs the gradCPT task."""
+    """Present images to the user and gather raw response times."""
     clock = pygame.time.Clock()
     trials = [{'is_mountain': False, 'responses': []} for _ in range(TRIAL_COUNT)]
     start_timestamp = time.time()
@@ -54,14 +52,12 @@ def gather_responses():
                     trials[i]['responses'].append((time.time() - trial_start) * 1000)
 
         cur_img, is_mountain = next_img, next_is_mountain
-        trial_end = time.time()
-        print(f"Time taken: {trial_end - trial_start}")
 
     end_timestamp = time.time()
     return start_timestamp, end_timestamp, trials
 
 def process_responses(trials):
-    """Calculate response times from the trial data."""
+    """Calculate response times (RTs) from the trial data."""
     response_times = [float('inf')] * TRIAL_COUNT
 
     # Edge case: first trial
@@ -99,24 +95,33 @@ def process_responses(trials):
                     else:
                         response_times[i] = rt
     
-    return response_times
 
-def calculate_rtv(response_times):
-    """Calculate RTV aka the trial to trial variation in response time"""
-    # Z-normalized: normalized such that mean is 0 and std is 1
-    z_normalized_rt = (response_times - np.mean(response_times)) / np.std(response_times)
-    vtc = np.abs(z_normalized_rt - np.mean(response_times))
+    # Replace inf with None
+    return [None if x == float('inf') else x for x in response_times]
 
-    # Linear interpolation for missing values
-    # Filling gaps in a simple way, assuming gaps are only one trial wide
-    for i in range(1, len(vtc) - 1):
-        if np.isnan(vtc[i]):
-            vtc[i] = (vtc[i-1] + vtc[i+1]) / 2
+def label(response_times):
+    """Label responses w.r.t RTV aka the trial to trial variation in response time"""
+    response_times = np.array(response_times, dtype=float)
+
+    # Z-tranform the sequence
+    z_normalized_rt = (response_times - np.nanmean(response_times)) / np.nanstd(response_times)
+
+    # Calculate variance time course
+    vtc = np.abs(z_normalized_rt - np.nanmean(z_normalized_rt))
+
+    # Linearly interpolate missing values in the vtc
+    nans, x = np.isnan(vtc), lambda z: z.nonzero()[0]
+    vtc[nans] = np.interp(x(nans), x(~nans), vtc[~nans])
 
     # Smooth the VTC
-    vtc_smoothed = gaussian_filter1d(vtc, sigma=7)  # sigma derived from FWHM
+    sigma = FWHM / (2 * np.sqrt(2 * np.log(2)))
+    vtc_smoothed = gaussian_filter1d(vtc, sigma=sigma)  # sigma derived from FWHM
 
-    return vtc_smoothed
+    # Determine "in the zone" (1) and "out of the zone" (0) labels
+    median_vtc = np.median(vtc_smoothed)
+    zone_labels = [1 if value <= median_vtc else 0 for value in vtc_smoothed]
+
+    return zone_labels
 
 def get_image(last_image: pygame.Surface = None):
     """Returns an image depending on the last image shown."""
@@ -135,11 +140,8 @@ def get_image(last_image: pygame.Surface = None):
 
     return choice, is_mountain
 
-def test():
-    test_responses = [{'is_mountain': False, 'responses': [400]}, {'is_mountain': False, 'responses': [100, 400, 780]}, {'is_mountain': False, 'responses': [200, 570]}, {'is_mountain': False, 'responses': [400]}, {'is_mountain': False, 'responses': []}, {'is_mountain': False, 'responses': [20, 780]}, {'is_mountain': False, 'responses': []}, {'is_mountain': False, 'responses': [400]}]
-    test_rts = process_responses(test_responses)
-    print(test_rts)
-
-
 if __name__ == "__main__":
-    test()
+    _, _, raw_responses = gather_responses()
+    responses = process_responses(raw_responses)
+    labels = label(responses)
+    print(labels)
