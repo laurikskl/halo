@@ -1,3 +1,4 @@
+from typing import NamedTuple, List, Optional, Tuple
 import time
 import pygame
 import numpy as np
@@ -9,6 +10,12 @@ FPS = 60
 FWHM = 9
 TRIAL_COUNT = 50
 TARGET_FREQ = 0.9
+
+# Types
+class Trial(NamedTuple):
+    """List entry for the `trials` list."""
+    is_mountain: bool
+    responses: List[float]
 
 # Initialize pygame
 pygame.init()
@@ -22,17 +29,17 @@ city_images = [pygame.image.load(f'labelling/images/city/city_{i}.jpg') for i in
 mountain_images = [pygame.image.load(f'labelling/images/mountains/mountain_{i}.jpg') for i in range(10)]
 
 
-def gather_responses():
-    """Present images to the user and gather raw response times."""
+def record_responses() -> Tuple[List[Trial], float, float]:
+    """Present images to the user and records raw response times."""
     clock = pygame.time.Clock()
     trials = [{'is_mountain': False, 'responses': []} for _ in range(TRIAL_COUNT)]
-    start_timestamp = time.time()
 
     # Change this value to make it 800ms on your machine. This value is for a M1 Macbook Air.
     alpha_change_per_frame = 256 / 33
 
     cur_img, is_mountain = get_image()
 
+    start_timestamp = time.time()
     for i in range(TRIAL_COUNT):
         trials[i]['is_mountain'] = is_mountain
         next_img, next_is_mountain = get_image(cur_img)
@@ -56,7 +63,7 @@ def gather_responses():
     end_timestamp = time.time()
     return start_timestamp, end_timestamp, trials
 
-def process_responses(trials):
+def process_responses(trials: List[Trial]) -> List[Optional[float]]:
     """Calculate response times (RTs) from the trial data."""
     response_times = [float('inf')] * TRIAL_COUNT
 
@@ -94,12 +101,11 @@ def process_responses(trials):
                         response_times[i-1] = 800 + rt
                     else:
                         response_times[i] = rt
-    
 
     # Replace inf with None
     return [None if x == float('inf') else x for x in response_times]
 
-def label(response_times):
+def label(response_times: List[Optional[float]]) -> List[int]:
     """Label responses w.r.t RTV aka the trial to trial variation in response time"""
     response_times = np.array(response_times, dtype=float)
 
@@ -123,7 +129,7 @@ def label(response_times):
 
     return zone_labels
 
-def get_image(last_image: pygame.Surface = None):
+def get_image(last_image: pygame.Surface = None) -> Tuple[pygame.Surface, bool]:
     """Returns an image depending on the last image shown."""
     is_mountain = False
     # Initial decision whether to pick from city_images or mountain_images
@@ -141,7 +147,7 @@ def get_image(last_image: pygame.Surface = None):
     return choice, is_mountain
 
 if __name__ == "__main__":
-    _, _, raw_responses = gather_responses()
+    _, _, raw_responses = record_responses()
     responses = process_responses(raw_responses)
     labels = label(responses)
     print(labels)
