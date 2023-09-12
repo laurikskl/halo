@@ -17,3 +17,11 @@ Add to `dependencies.yml` with package version included
 # updating your environment
 
 `conda env update -f environment.yml`
+
+# if something is fucked
+
+`conda deactivate`
+`conda remove -n halo --all`
+
+Do setup again
+ 
