@@ -14,5 +14,5 @@ dependencies:
   - pygame=2.5.1
   - Pillow
   - pip:
-    - python-osc
-    - mne
+      - python-osc
+      - mne
