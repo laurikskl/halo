@@ -8,17 +8,17 @@ from scipy.ndimage import gaussian_filter1d
 SCREEN_WIDTH, SCREEN_HEIGHT = 1920, 1080
 FPS = 60
 FWHM = 9
-TRIAL_COUNT = 50
+TRIAL_COUNT = 75 * 5 # 75 trials == 1 minute
 TARGET_FREQ = 0.9
 
 # Types
 class Trial(NamedTuple):
     """List entry for the `trials` list."""
     is_mountain: bool
-    responses: List[float]
+    responses: List[float] 
 
 # Initialize pygame
-pygame.init()
+pygame.init() 
 
 # Set up the window
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -33,14 +33,19 @@ def record_responses() -> Tuple[List[Trial], float, float]:
     """Present images to the user and records raw response times."""
     clock = pygame.time.Clock()
     trials = [{'is_mountain': False, 'responses': []} for _ in range(TRIAL_COUNT)]
+    trial_times = []
 
     # Change this value to make it 800ms on your machine. This value is for a M1 Macbook Air.
-    alpha_change_per_frame = 256 / 33
+    alpha_change_per_frame = 256 / 20
 
     cur_img, is_mountain = get_image()
 
     start_timestamp = time.time()
     for i in range(TRIAL_COUNT):
+        if i == 10:
+            if abs(trial_times[-1] - 0.8) > 0.015 or abs(trial_times[-2] - 0.8) > 0.015:
+                print("trial fucked")
+                break
         trials[i]['is_mountain'] = is_mountain
         next_img, next_is_mountain = get_image(cur_img)
         trial_start = time.time()
@@ -59,9 +64,11 @@ def record_responses() -> Tuple[List[Trial], float, float]:
                     trials[i]['responses'].append((time.time() - trial_start) * 1000)
 
         cur_img, is_mountain = next_img, next_is_mountain
+        trial_times.append(time.time() - trial_start)
+        
 
     end_timestamp = time.time()
-    return start_timestamp, end_timestamp, trials
+    return start_timestamp, end_timestamp, trials, trial_times
 
 def process_responses(trials: List[Trial]) -> List[Optional[float]]:
     """Calculate response times (RTs) from the trial data."""
@@ -146,8 +153,31 @@ def get_image(last_image: pygame.Surface = None) -> Tuple[pygame.Surface, bool]:
 
     return choice, is_mountain
 
+def save_results(start_timestamp: float, end_timestamp: float, labels: List[int]):
+    # Convert the list to a string with each element on a new line
+    labels_str = '\n'.join(map(str, labels))
+
+    # Convert timestamps to strings
+    start_timestamp_str = str(start_timestamp)
+    end_timestamp_str = str(end_timestamp)
+
+    # Define the filename
+    filename = "output.txt"
+
+    # Open the file in write mode and write the data
+    with open(filename, 'w') as file:
+        file.write("Labels:\n")
+        file.write(labels_str + "\n")
+        file.write("Start Timestamp: " + start_timestamp_str + "\n")
+        file.write("End Timestamp: " + end_timestamp_str + "\n")
+
+
 if __name__ == "__main__":
-    _, _, raw_responses = record_responses()
+    start_timestamp, end_timestamp, raw_responses, trial_times = record_responses()
     responses = process_responses(raw_responses)
     labels = label(responses)
+    save_results(start_timestamp, end_timestamp, labels)
+    print(trial_times)
+    print(start_timestamp)
+    print(end_timestamp)
     print(labels)
