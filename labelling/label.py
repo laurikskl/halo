@@ -162,7 +162,7 @@ def save_results(start_timestamp: float, end_timestamp: float, labels: List[int]
     end_timestamp_str = str(end_timestamp)
 
     # Define the filename
-    filename = "output.txt"
+    filename = "gradcpt_output.txt"
 
     # Open the file in write mode and write the data
     with open(filename, 'w') as file:
